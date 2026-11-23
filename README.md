@@ -1,16 +1,33 @@
-# SendEmail.ai SaaS Platform
+# SendEmail.ai — Email Delivery & DAG Automation Platform
 
-SendEmail.ai 是一套支援交易型郵件派發、批量信箱風險驗證、防退信抑制名單閉環與動態範本渲染的多租戶郵件基礎設施平台。
+Pre-verified email delivery engine with dual-stack SMTP routing, bounce/FBL circuit breakers, and BullMQ DAG workflow automation.
 
-## 規範文件索引（Documentation）
+## 1. System Architecture
+- **Frontend (`sendemail-web`)**: Next.js web console (`https://app.sendemail.ai`)
+- **Backend API (`sendemail-api`)**: Node.js REST API (`127.0.0.1:8096`) handling authentication, beta invite guards, and campaign/transactional dispatch
+- **Worker (`sendemail-worker`)**: BullMQ asynchronous job processor
+- **Mail Engine (`php-site-03`)**: MailWizz core handling DKIM signing, transactional queues, and bounce/FBL processing
+- **MTA (`Postfix`)**: Host-level dual-stack (IPv4 & IPv6) outbound delivery and local port `2525` bounce ingestion
+- **Data Layer**: MariaDB & Redis
 
-* **[系統架構與安全基線規範 (`docs/ARCHITECTURE_AND_SECURITY.md`)](docs/ARCHITECTURE_AND_SECURITY.md)**：容器服務拓撲、核心資料表結構、雙端 SSRF 縱深防禦、Redis 分層速率限制與計費配額原子扣減規則。
-* **[REST API 開發者規格書 (`docs/API_REFERENCE.md`)](docs/API_REFERENCE.md)**：認證方式、標準 HTTP 狀態碼（含 `402` 配額/點數不足與 `429` 限流）、發信、範本、驗證與抑制名單端點明細。
-* **[OpenAPI 3.0 機器可讀規格 (`docs/openapi.yaml`)](docs/openapi.yaml)**：標準 OpenAPI 3.0.3 YAML 定義檔，可直接匯入 Postman、Insomnia 或自動化測試工具。
+## 2. Quick Deployment
+1. Copy the sanitized environment template and fill in credentials:
+   ```bash
+   cp .env.example .env
+   ```
+2. Build and start all services:
+   ```bash
+   docker compose up -d --build
+   ```
 
-## 目錄結構
+## 3. Operations & Beta Access Control
+- **Beta Invite Guard (`BETA_INVITE_CODE`)**: Set `BETA_INVITE_CODE` in `.env` to restrict public sign-ups to invited testers without affecting existing admin or user logins. Leave empty and run `docker compose up -d sendemail-api` to open public registration.
+- **Host Cron Schedules**: Managed via `/etc/cron.d/mailwizz-sendemail` (runs `send-campaigns`, `queue`, and `send-transactional-emails` every minute).
+- **Mail Delivery Logs**:
+  ```bash
+  tail -f /var/log/mail.log
+  ```
 
-* `/api` — Express REST API 服務（端口 `8096`）
-* `/worker` — BullMQ 非同步發信、信箱驗證與 Webhook 事件派發背景服務
-* `/web` — Next.js 15 管理控制台（端口 `8095`）
-* `/docs` — 系統架構、安全基線與 API 規範文件
+## 4. Documentation Index
+- **[Mail Infrastructure & Auth Handover](docs/MAIL_INFRA_HANDOVER.md)**: DNS/FCrDNS records, Postfix dual-stack configuration, Cloudflare Email Routing, cron jobs, and verification flows.
+- **[Architecture Context](docs/ARCHITECTURE_CONTEXT.md)**: Core platform design and service boundaries.
