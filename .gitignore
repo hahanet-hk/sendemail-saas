@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.next/
+dist/
+*.log
+*.bak
+*.sql
+*.pem
+*.key
+.DS_Store

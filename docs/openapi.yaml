@@ -1,0 +1,322 @@
+openapi: 3.0.3
+info:
+  title: SendEmail.ai API
+  version: 1.0.0
+  description: Transactional & Campaign Email Dispatch, Bulk Verification, Template Rendering, and Webhook SaaS API.
+servers:
+  - url: https://www.sendemail.ai/api/v1
+    description: Production API
+  - url: http://127.0.0.1:8096/api/v1
+    description: Local Internal API
+security:
+  - BearerAuth: []
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key (se_live_... or se_test_...)
+paths:
+  /me:
+    get:
+      summary: Get current tenant profile, quota, and credit balance
+      responses:
+        '200':
+          description: Tenant quota and credit details
+  /send:
+    post:
+      summary: Dispatch transactional or campaign email (raw HTML or template_id)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              to:
+                - alice@example.com
+              from_name: Acme App
+              from_email: noreply@sendemail.ai
+              template_id: tpl_8f9a2c1b4e7d0123
+              variables:
+                first_name: Alice
+                code: "849201"
+              sandbox: false
+      responses:
+        '202':
+          description: Queued for delivery or captured in sandbox
+        '200':
+          description: All recipients matched suppression list (suppressed_all)
+        '402':
+          description: Monthly sending quota exceeded (QUOTA_EXCEEDED)
+        '429':
+          description: Rate limit exceeded
+  /dispatches/{dispatchUid}:
+    get:
+      summary: Get dispatch delivery status
+      responses:
+        '200':
+          description: Dispatch record
+  /templates:
+    get:
+      summary: List transactional email templates
+      responses:
+        '200':
+          description: Array of templates and extracted merge variables
+    post:
+      summary: Create a new email template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              name: Welcome Verification Code
+              subject: "Your verification code is {{code}}"
+              html_body: "<h1>Hi {{first_name}}</h1><p>Use code <strong>{{code}}</strong> within 10 minutes.</p>"
+              sample_variables:
+                first_name: Alice
+                code: "849201"
+      responses:
+        '201':
+          description: Template created
+  /templates/{uid}:
+    put:
+      summary: Update an existing template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              name: Welcome Verification Code v2
+              subject: "Confirm your account: {{code}}"
+              html_body: "<p>Hello {{first_name}}, your code is <b>{{code}}</b>.</p>"
+      responses:
+        '200':
+          description: Template updated
+    delete:
+      summary: Delete a template
+      responses:
+        '200':
+          description: Template deleted
+  /verify/batch:
+    post:
+      summary: Queue a bulk email verification batch (up to 5,000 emails)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              source_name: october_newsletter_list
+              emails:
+                - alice@gmail.com
+                - disposable@mailinator.com
+      responses:
+        '202':
+          description: Batch queued and credits deducted
+        '402':
+          description: Insufficient verification credits (INSUFFICIENT_CREDITS)
+  /verify/batches:
+    get:
+      summary: List recent verification batches
+      responses:
+        '200':
+          description: Batch list
+  /verify/batches/{batchUid}:
+    get:
+      summary: Inspect batch progress and per-email risk scores
+      responses:
+        '200':
+          description: Batch summary and results
+  /verify/batches/{batchUid}/sync-suppressions:
+    post:
+      summary: Idempotently sync blocked emails from a batch into global suppressions
+      requestBody:
+        required: false
+        content:
+          application/json:
+            example:
+              include_review: false
+      responses:
+        '200':
+          description: Sync summary
+  /verify/batches/{batchUid}/export.csv:
+    get:
+      summary: Download UTF-8 CSV verification report
+      responses:
+        '200':
+          description: CSV file stream
+  /suppressions:
+    get:
+      summary: List suppressed email addresses
+      responses:
+        '200':
+          description: Array of suppressed recipients
+    post:
+      summary: Add an email address to suppressions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              email: bounced.user@example.com
+              reason: manual
+      responses:
+        '201':
+          description: Address added to suppressions
+  /webhooks:
+    get:
+      summary: List registered webhook endpoints
+      responses:
+        '200':
+          description: Array of webhook endpoints
+    post:
+      summary: Register a new SSRF-validated webhook endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              url: https://hooks.example.com/sendemail/events
+              events:
+                - email.delivered
+                - email.bounced
+                - quota.warning
+      responses:
+        '201':
+          description: Webhook endpoint registered
+  /billing/reset-logs:
+    get:
+      summary: List monthly billing cycle quota reset audit logs
+      responses:
+        '200':
+          description: Array of monthly quota reset audit records
+  /openapi.yaml:
+    get:
+      summary: Retrieve live OpenAPI 3.0.3 specification in YAML format
+      security: []
+      responses:
+        '200':
+          description: OpenAPI YAML document
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /api/v1/tools/spam-check:
+    post:
+      summary: Run Rspamd spam score & symbol inspection on email content
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Rspamd score, action, verdict and triggered symbols } }
+  /api/v1/tools/spam-learn:
+    post:
+      summary: Train Rspamd Bayes classifier with spam or ham sample
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Bayes model updated } }
+  /api/v1/tools/preflight:
+    post:
+      summary: Run full pre-send readiness check (DNS SPF/DKIM/DMARC, Rspamd score, unsubscribe compliance)
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Readiness score (0-100) and actionable issues } }
+  /api/v1/sandbox/{uid}/rescan:
+    post:
+      summary: Re-evaluate a captured sandbox email using Rspamd
+      security: [{ bearerAuth: [] }]
+      responses: { '200': { description: Updated Rspamd score and report } }
+
+  /api/v1/bounces:
+    get:
+      summary: 查詢雙源退信歸因紀錄與滑動視窗熔斷健康度
+      tags: [Deliverability & Risk]
+      responses:
+        "200":
+          description: 返回租戶信譽分、24 小時硬退信率與投訴率、退信明細與告警列表
+  /api/v1/bounces/ingest:
+    post:
+      summary: 雙源退信與 ISP FBL 投訴接收解析引擎（VERP DSN / Gmail API / ISP FBL）
+      tags: [Deliverability & Risk]
+      responses:
+        "201":
+          description: 完成退信歸因、72 小時退避排程或抑制寫入與滑動視窗熔斷評估
+  /api/v1/ops/alerts/{alertUid}/resolve:
+    post:
+      summary: 戰情室告警審核（一鍵放行解除凍結或永久封禁）
+      tags: [Deliverability & Risk]
+      responses:
+        "200":
+          description: 完成告警審核並更新租戶發信狀態
+
+  /api/v1/automations:
+    get:
+      summary: 查詢自動化 DAG 工作流、執行實例與原生 A/B 實驗
+      tags: [Automations & Experiments]
+      responses:
+        "200":
+          description: 返回工作流、執行紀錄、實驗列表與標準化範本
+  /api/v1/automations/from-template:
+    post:
+      summary: 從標準化可調參數範本部署 DAG 自動化工作流
+      tags: [Automations & Experiments]
+      responses:
+        "201":
+          description: 建立並啟用 DAG 工作流
+  /api/v1/events/track:
+    post:
+      summary: 觸發自動化流程與目標達成自動取消（Goal Cancellation / Time-Travel）
+      tags: [Automations & Experiments]
+      responses:
+        "200":
+          description: 完成事件觸發與目標達成取消處理
+  /api/v1/experiments:
+    post:
+      summary: 建立原生 A/B 測試實驗（自動流量切分與觀察窗口）
+      tags: [Automations & Experiments]
+      responses:
+        "201":
+          description: 建立 A/B 實驗
+  /api/v1/experiments/{expUid}/evaluate:
+    post:
+      summary: 評估 A/B 實驗並自動選出勝出變體推播剩餘流量
+      tags: [Automations & Experiments]
+      responses:
+        "200":
+          description: 返回勝出變體與推播結果
+
+  /api/v1/auth/sso/providers:
+    get:
+      summary: 查詢可用 SSO 單點登入提供商（global_auth 跨庫身分中樞）
+      tags: [SSO & Commercial Billing]
+      responses:
+        "200":
+          description: 返回 SSO 提供商清單與端點
+  /api/v1/auth/sso/exchange:
+    post:
+      summary: 交換 SSO 憑證並自動建立租戶與發放 Session Cookie
+      tags: [SSO & Commercial Billing]
+      responses:
+        "200":
+          description: 完成單點登入並設定 se_session Cookie
+  /api/v1/billing/plans:
+    get:
+      summary: 查詢多幣別訂閱方案（USD/HKD/TWD）、點數加購包與帳本流水
+      tags: [SSO & Commercial Billing]
+      responses:
+        "200":
+          description: 返回當前訂閱狀態、方案列表與點數帳本
+  /api/v1/billing/checkout:
+    post:
+      summary: 建立 Airwallex 多幣別訂閱或清洗點數加購結帳訂單
+      tags: [SSO & Commercial Billing]
+      responses:
+        "201":
+          description: 返回結帳訂單與 PaymentIntent 識別碼
+  /api/v1/billing/webhooks/airwallex:
+    post:
+      summary: Airwallex 付款 Webhook 驗簽與冪等入帳處理
+      tags: [SSO & Commercial Billing]
+      responses:
+        "200":
+          description: 完成訂閱升級或點數入帳
+  /api/v1/superadmin/overview:
+    get:
+      summary: 超級管理員全域戰情室（跨租戶 KPI、營收與風控狀態）
+      tags: [SuperAdmin Command Center]
+      responses:
+        "200":
+          description: 返回全站營運指標與租戶清單

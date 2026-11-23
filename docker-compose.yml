@@ -1,0 +1,53 @@
+services:
+  sendemail-web:
+    build: ./web
+    container_name: sendemail-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8095:8095"
+    networks:
+      - global-net
+
+  sendemail-api:
+    build: ./api
+    container_name: sendemail-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./docs:/app/docs:ro
+    ports:
+      - "127.0.0.1:8096:8096"
+    networks:
+      - global-net
+
+  sendemail-worker:
+    build: ./worker
+    container_name: sendemail-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - global-net
+
+  sendemail-rspamd:
+    image: rspamd/rspamd:latest
+    container_name: sendemail-rspamd
+    restart: unless-stopped
+    volumes:
+      - ./rspamd/local.d:/etc/rspamd/local.d:ro
+    networks:
+      - global-net
+
+  smtp-bounce-receiver:
+    build: ./smtp-bounce
+    container_name: smtp-bounce-receiver
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2525:2525"
+    networks:
+      - global-net
+
+networks:
+  global-net:
+    external: true
