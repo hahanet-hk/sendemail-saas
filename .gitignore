@@ -10,3 +10,5 @@ dist/
 *.pem
 *.key
 .DS_Store
+local-proxy/
+docker-compose.local.yml

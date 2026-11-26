@@ -1,0 +1,33 @@
+name: Deploy sendemail-saas
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-sendemail-saas
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update sendemail-saas on the VPS and rebuild
+        env:
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+          KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "${USER}@${HOST}" 'bash -s' << 'REMOTE'
+          set -euo pipefail
+          export GIT_SSH_COMMAND='ssh -i /root/.ssh/sendemail-ai-pull -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
+          cd /home/docker-apps/sendemail-saas
+          git -c safe.directory=/home/docker-apps/sendemail-saas pull --ff-only origin main
+          docker compose up -d --build sendemail-web sendemail-api sendemail-worker
+          echo DEPLOYED
+          REMOTE
