@@ -9,7 +9,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out sendemail-saas
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install api dependencies
+        working-directory: api
+        run: npm ci
+
+      - name: Run api tests
+        working-directory: api
+        run: npm test
+
+      - name: Run worker tests
+        working-directory: worker
+        run: npm test
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Update sendemail-saas on the VPS and rebuild

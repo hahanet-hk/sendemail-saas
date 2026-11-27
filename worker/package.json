@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node worker.js"
+    "start": "node worker.js",
+    "test": "node --experimental-test-module-mocks --test",
+    "lint": "node ../testing/lint.mjs . ../testing/ssrf_guard_suite.mjs"
   },
   "dependencies": {
     "bullmq": "^5.34.0",
